@@ -129,14 +129,52 @@ class CodenameCompat
 		catch (e:Dynamic) { trace('CodenameCompat: bad JSON in $path: $e'); return null; }
 	}
 
+	// ------------------------------------------------------------------ song folders
+
+	static var folderCache:Map<String, String> = new Map();
+
+	/**
+	 * Codename song folders keep their real names ("Last Chance"), Psych formats them
+	 * ("last-chance"). Returns the real folder name for a song, or the formatted one.
+	 */
+	public static function realSongFolder(song:String):String
+	{
+		var formatted:String = Paths.formatToSongPath(song);
+		#if MODS_ALLOWED
+		var roots:Array<String> = [];
+		if (Paths.currentModDirectory != null && Paths.currentModDirectory.length > 0)
+			roots.push(Paths.mods(Paths.currentModDirectory + '/songs/'));
+		for (mod in Paths.getGlobalMods()) roots.push(Paths.mods(mod + '/songs/'));
+		roots.push(Paths.mods('songs/'));
+
+		for (root in roots)
+		{
+			var cacheKey = root + '|' + formatted;
+			if (folderCache.exists(cacheKey)) return folderCache.get(cacheKey);
+			if (!exists(root) || !FileSystem.isDirectory(root)) continue;
+			if (exists(root + formatted)) { folderCache.set(cacheKey, formatted); return formatted; }
+			for (dir in FileSystem.readDirectory(root))
+			{
+				if (Paths.formatToSongPath(dir) == formatted && FileSystem.isDirectory(root + dir))
+				{
+					folderCache.set(cacheKey, dir);
+					return dir;
+				}
+			}
+		}
+		#end
+		return formatted;
+	}
+
 	// ------------------------------------------------------------------ audio
 
 	/** True if songs/<folder>/song/<file>.ogg (Codename layout) or songs/<folder>/<file>.ogg exists in the mods. */
 	static function songAudioExists(folder:String, file:String):Bool
 	{
 		#if MODS_ALLOWED
-		if (exists(Paths.modsSounds('songs/' + folder + '/song', file))) return true;
-		if (exists(Paths.modsSounds('songs/' + folder, file))) return true;
+		var real = realSongFolder(folder);
+		if (exists(Paths.modsSounds('songs/' + real + '/song', file))) return true;
+		if (exists(Paths.modsSounds('songs/' + real, file))) return true;
 		#end
 		return false;
 	}
@@ -158,7 +196,7 @@ class CodenameCompat
 	{
 		if (jsonInput == 'events') return null;
 		var diff:String = difficultyFrom(folder, jsonInput);
-		var base:String = 'songs/' + folder + '/';
+		var base:String = 'songs/' + realSongFolder(folder) + '/';
 
 		var chartPath:String = findModFile(base + 'charts/' + diff + '.json');
 		if (chartPath == null) chartPath = findModFile(base + 'charts/' + diff.toLowerCase() + '.json');
@@ -191,12 +229,24 @@ class CodenameCompat
 		var player1:String = 'bf', player2:String = 'dad', gfVersion:String = 'gf';
 		var playerKeys:Int = -1, oppKeys:Int = -1;
 		var foundG = false;
-		for (sl in strumLines)
+
+		// multikey mods often set the real key count with a "Set Key Count" event
+		var eventKeys:Int = -1;
+		if (chart.events != null)
+			for (e in (chart.events : Array<Dynamic>))
+				if (Std.string(e.name) == 'Set Key Count' && e.params != null && num(e.time, 0) <= 1)
+					eventKeys = Std.int(num(e.params[0], -1));
+
+		var lineKeys:Array<Int> = [];
+		for (sl in strumLines) lineKeys.push(effectiveKeys(sl, eventKeys));
+
+		for (i in 0...strumLines.length)
 		{
+			var sl:Dynamic = strumLines[i];
 			var t:Int = Std.int(num(sl.type, 0));
 			var chars:Array<Dynamic> = sl.characters != null ? sl.characters : [];
 			var first:String = chars.length > 0 ? Std.string(chars[0]) : null;
-			var k:Int = ManiaConverter.clampKeys(Std.int(num(sl.keyCount, DEFAULT_KEYS)));
+			var k:Int = ManiaConverter.clampKeys(lineKeys[i]);
 			if (t == 1 && playerKeys < 0) { playerKeys = k; if (first != null) player1 = first; }
 			else if (t == 0 && oppKeys < 0) { oppKeys = k; if (first != null) player2 = first; }
 			else if (t == 2 && !foundG && first != null) { gfVersion = first; foundG = true; }
@@ -244,11 +294,11 @@ class CodenameCompat
 
 		// --- notes (player lines -> player side, opponent + extra lines -> opponent side)
 		var allNotes:Array<{time:Float, sus:Float, player:Bool, lane:Int, type:String}> = [];
-		for (sl in strumLines)
+		for (li in 0...strumLines.length)
 		{
+			var sl:Dynamic = strumLines[li];
 			var t:Int = Std.int(num(sl.type, 0));
-			var slKeys:Int = Std.int(num(sl.keyCount, DEFAULT_KEYS));
-			if (slKeys < 1) slKeys = DEFAULT_KEYS;
+			var slKeys:Int = lineKeys[li];
 			var isPlayer = t == 1;
 			var sideKeys = isPlayer ? playerKeys : oppKeys;
 			var notes:Array<Dynamic> = sl.notes != null ? sl.notes : [];
@@ -322,8 +372,8 @@ class CodenameCompat
 		}
 
 		// --- song name must format to the folder name or the audio won't be found
-		var name:String = str(meta.name, folder);
-		if (Paths.formatToSongPath(name) != folder) name = folder;
+		var name:String = str(meta.displayName, str(meta.name, folder));
+		if (Paths.formatToSongPath(name) != Paths.formatToSongPath(folder)) name = folder;
 
 		var needsVoices:Bool = meta.needsVoices != false;
 		if (needsVoices && !songAudioExists(folder, 'Voices')) needsVoices = false; // only split vocals, or none
@@ -347,6 +397,20 @@ class CodenameCompat
 			skinModifier: '',
 			validScore: true
 		};
+	}
+
+	/** Key count of a strumline: keyCount, a Set Key Count event, or the highest note id + 1 — whichever is largest. */
+	static function effectiveKeys(sl:Dynamic, eventKeys:Int):Int
+	{
+		var k:Int = Std.int(num(sl.keyCount, DEFAULT_KEYS));
+		if (eventKeys > k) k = eventKeys;
+		var notes:Array<Dynamic> = sl.notes != null ? sl.notes : [];
+		for (n in notes)
+		{
+			var id:Int = Std.int(num(n.id, 0));
+			if (id + 1 > k) k = id + 1;
+		}
+		return k < 1 ? DEFAULT_KEYS : k;
 	}
 
 	static function charTarget(strumLines:Array<Dynamic>, line:Int):String
@@ -568,6 +632,7 @@ class CodenameCompat
 							var scy = num(e.get('scaley'), num(e.get('scale'), 1));
 							create.add('\tscaleObject($tag, $scx, $scy, ${bool(e, "updateHitbox", false)})\n');
 						}
+						if (e.get('angle') != null) create.add('\tsetProperty($tag .. ".angle", ${num(e.get("angle"), 0)})\n');
 						if (e.get('alpha') != null) create.add('\tsetProperty($tag .. ".alpha", ${num(e.get("alpha"), 1)})\n');
 						if (e.get('flipX') != null) create.add('\tsetProperty($tag .. ".flipX", ${bool(e, "flipX", false)})\n');
 						if (e.get('antialiasing') != null) create.add('\tsetProperty($tag .. ".antialiasing", ${bool(e, "antialiasing", true)})\n');
@@ -678,6 +743,24 @@ class CodenameCompat
 					var entry:Array<Dynamic> = [name, str(meta.icon, 'face'), colorArray(meta.color, [146, 113, 253])];
 					if (!groups.exists(diffKey)) { groups.set(diffKey, []); order.push(diffKey); }
 					groups.get(diffKey).push(entry);
+				}
+
+				// keep the mod's own Freeplay order if it has one
+				var orderFile = root + 'data/config/freeplaySonglist.txt';
+				if (FileSystem.exists(orderFile))
+				{
+					var wanted:Array<String> = [for (l in File.getContent(orderFile).split('\n')) if (l.trim() != '') Paths.formatToSongPath(l.trim())];
+					for (k in groups.keys())
+					{
+						var list = groups.get(k);
+						list.sort(function(a, b) {
+							var ia = wanted.indexOf(Paths.formatToSongPath(Std.string(a[0])));
+							var ib = wanted.indexOf(Paths.formatToSongPath(Std.string(b[0])));
+							if (ia < 0) ia = 9999;
+							if (ib < 0) ib = 9999;
+							return ia - ib;
+						});
+					}
 				}
 
 				var weeksDir = root + 'weeks/';

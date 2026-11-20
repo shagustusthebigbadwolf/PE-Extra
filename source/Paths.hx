@@ -305,11 +305,18 @@ class Paths
 	static function songSound(song:String, file:String, suffix:String, doTrace:Bool = true):Sound
 	{
 		var songKey:String = '${formatToSongPath(song)}';
+		var folders:Array<String> = [songKey];
+		#if MODS_ALLOWED
+		var real:String = CodenameCompat.realSongFolder(song);
+		if (real != songKey) folders.push(real);
+		#end
 		var names:Array<String> = suffix.length > 0 ? ['$file$suffix', file] : [file];
 		for (name in names) {
-			var sound = returnSound(songKey, name, 'songs', false);
-			if (sound == null) sound = returnSound('$songKey/song', name, 'songs', false);
-			if (sound != null) return sound;
+			for (folder in folders) {
+				var sound = returnSound(folder, name, 'songs', false);
+				if (sound == null) sound = returnSound('$folder/song', name, 'songs', false);
+				if (sound != null) return sound;
+			}
 		}
 		if (doTrace) trace('oh no its returning null NOOOO: $songKey/$file');
 		return null;
