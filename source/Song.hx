@@ -151,6 +151,16 @@ class Song
 		}
 		#end
 
+		// Shagustus: Codename Engine charts (songs/<song>/charts/<difficulty>.json)
+		if (rawJson == null && formattedSong != 'events') {
+			var cnSong:SwagSong = cast CodenameCompat.loadSong(formattedFolder, formattedSong);
+			if (cnSong != null) {
+				StageData.loadDirectory(cnSong);
+				onLoadJson(cnSong);
+				return cnSong;
+			}
+		}
+
 		if (rawJson == null) {
 			#if MODS_ALLOWED
 			rawJson = File.getContent(Paths.json('$formattedFolder/$formattedSong')).trim();

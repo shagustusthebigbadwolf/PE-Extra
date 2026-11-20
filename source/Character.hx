@@ -377,6 +377,11 @@ class Character extends FlxSprite
 		if (!Assets.exists(path))
 		#end
 		{
+			#if MODS_ALLOWED
+			// Shagustus: Codename Engine XML characters (data/characters/<name>.xml)
+			var cnChar:Dynamic = CodenameCompat.characterFromXml(name);
+			if (cnChar != null) return cnChar;
+			#end
 			path = Paths.getPreloadPath('characters/$DEFAULT_CHARACTER.json'); //If a character couldn't be found, change them to BF just to prevent a crash
 		}
 

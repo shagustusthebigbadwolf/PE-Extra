@@ -137,6 +137,17 @@ class GameplayChangersSubState extends MusicBeatSubState
 			'bool',
 			false);
 		optionsArray.push(option);
+
+		// Shagustus: mania converter
+		var keyOptions:Array<String> = ['Off'];
+		for (k in ManiaConverter.MIN_KEYS...ManiaConverter.maxKeys() + 1) keyOptions.push(Std.string(k));
+		var option:GameplayOption = new GameplayOption('Force Key Count',
+			"Converts every chart to this many keys. Off plays charts as written.",
+			'forcekeys',
+			'string',
+			'Off',
+			keyOptions);
+		optionsArray.push(option);
 	}
 
 	public function getOptionByName(name:String)

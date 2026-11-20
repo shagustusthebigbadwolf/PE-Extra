@@ -301,24 +301,28 @@ class Paths
 		return file;
 	}
 
-	inline static public function voices(song:String, ?suffix:String = ''):Sound
+	// Shagustus: also checks Codename's songs/<song>/song/ folder
+	static function songSound(song:String, file:String, suffix:String, doTrace:Bool = true):Sound
 	{
 		var songKey:String = '${formatToSongPath(song)}';
-		var voices = returnSound(songKey, 'Voices$suffix', 'songs', false);
-		if (voices == null && suffix.length > 0) {
-			voices = returnSound(songKey, 'Voices', 'songs');
+		var names:Array<String> = suffix.length > 0 ? ['$file$suffix', file] : [file];
+		for (name in names) {
+			var sound = returnSound(songKey, name, 'songs', false);
+			if (sound == null) sound = returnSound('$songKey/song', name, 'songs', false);
+			if (sound != null) return sound;
 		}
-		return voices;
+		if (doTrace) trace('oh no its returning null NOOOO: $songKey/$file');
+		return null;
 	}
 
-	inline static public function inst(song:String, ?suffix:String = ''):Sound
+	static public function voices(song:String, ?suffix:String = ''):Sound
 	{
-		var songKey:String = '${formatToSongPath(song)}';
-		var inst = returnSound(songKey, 'Inst$suffix', 'songs', false);
-		if (inst == null && suffix.length > 0) {
-			inst = returnSound(songKey, 'Inst', 'songs');
-		}
-		return inst;
+		return songSound(song, 'Voices', suffix);
+	}
+
+	static public function inst(song:String, ?suffix:String = ''):Sound
+	{
+		return songSound(song, 'Inst', suffix);
 	}
 
 	static public function voicesDad(song:String, ?suffix:String = ''):Sound

@@ -84,7 +84,8 @@ class StageData {
 		#end
 		else
 		{
-			return null;
+			// Shagustus: Codename Engine XML stages (data/stages/<name>.xml)
+			return cast CodenameCompat.stageFromXml(stage);
 		}
 
 		var stageFile:StageFile = cast Json.parse(rawJson);

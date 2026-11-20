@@ -440,6 +440,8 @@ class PlayState extends MusicBeatState
 		if (SONG == null)
 			SONG = Song.loadFromJson('test', 'test');
 
+		if (!inEditor) ManiaConverter.applyForcedKeys(SONG); // Shagustus: Force Key Count
+
 		originalSong = Reflect.copy(SONG);
 
 		if (practiceMode || cpuControlled || opponentChart) SONG.validScore = false;

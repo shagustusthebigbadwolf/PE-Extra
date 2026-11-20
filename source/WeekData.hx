@@ -82,6 +82,7 @@ class WeekData {
 
 	public static function reloadWeekFiles(?isStoryMode:Bool = false)
 	{
+		CodenameCompat.generateFreeplayWeeks(); // Shagustus: list Codename songs in Freeplay
 		weeksList = [];
 		weeksLoaded.clear();
 		#if MODS_ALLOWED
