@@ -200,7 +200,7 @@ class CoolUtil
 							suffix = '';
 						}
 						var poop:String = song + suffix;
-						if (!Paths.fileExists('data/$song/$poop.json', TEXT)) {
+						if (!Paths.fileExists('data/$song/$poop.json', TEXT) && !CodenameCompat.hasChart(song, diffs[i])) {
 							diffs.remove(diffs[i]);
 						} else {
 							i++;

@@ -166,6 +166,13 @@ class CodenameCompat
 		return formatted;
 	}
 
+	/** True if a Codename chart exists for this song + difficulty (songs/<song>/charts/<diff>.json). */
+	public static function hasChart(song:String, difficulty:String):Bool
+	{
+		var base:String = 'songs/' + realSongFolder(song) + '/charts/';
+		return findModFile(base + difficulty + '.json') != null || findModFile(base + difficulty.toLowerCase() + '.json') != null;
+	}
+
 	// ------------------------------------------------------------------ audio
 
 	/** True if songs/<folder>/song/<file>.ogg (Codename layout) or songs/<folder>/<file>.ogg exists in the mods. */
